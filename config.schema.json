@@ -1,17 +1,118 @@
 {
-  "pluginAlias": "ExampleHomebridgePlugin",
+  "pluginAlias": "HomebridgeMagichomeLedController",
   "pluginType": "platform",
   "singular": true,
   "strictValidation": false,
+  "headerDisplay": "A Homebridge plugin for controlling MagicHome single color LED strips through HomeKit.<br><br>**Features:**<br>• HomeKit integration for MagicHome LED devices<br>• Brightness control via red channel mapping<br>• Automatic MAC to IP address resolution<br>• Real-time status polling<br><br>For support and documentation, visit the [GitHub repository](https://github.com/fbernaly/homebridge-magichome-led-controller).",
+  "footerDisplay": "Having issues? Check the [troubleshooting guide](https://github.com/fbernaly/homebridge-magichome-led-controller#troubleshooting) or open an issue on GitHub.",
   "schema": {
     "type": "object",
     "properties": {
-      "name": {
-        "title": "Name",
-        "type": "string",
-        "required": true,
-        "default": "Example Dynamic Platform"
+      "pollingInterval": {
+        "title": "Status Polling Interval",
+        "type": "integer",
+        "default": 5,
+        "minimum": 1,
+        "maximum": 300,
+        "description": "How often to check device status (1-300 seconds). Lower values provide faster updates but use more network resources."
+      },
+      "lights": {
+        "title": "MagicHome LED Devices",
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "title": "Device Name",
+              "type": "string",
+              "required": true,
+              "minLength": 1,
+              "maxLength": 50,
+              "placeholder": "e.g., Kitchen LED Strip",
+              "description": "The name that will appear in the Apple Home app"
+            },
+            "address": {
+              "title": "Device Address",
+              "type": "string",
+              "required": true,
+              "pattern": "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}|[0-9A-Fa-f]{12}$",
+              "placeholder": "192.168.1.90 or AA:BB:CC:DD:EE:FF",
+              "description": "IP address or MAC address of your MagicHome device. MAC addresses will be automatically resolved to IP addresses."
+            }
+          },
+          "required": ["name", "address"]
+        },
+        "description": "Configure your MagicHome LED devices. At least one device is required."
       }
+    },
+    "required": ["lights"]
+  },
+  "layout": [
+    {
+      "type": "help",
+      "helpvalue": "<h4>🔧 Plugin Configuration</h4><p>Configure your MagicHome LED controller plugin settings below. This plugin is specifically designed for <strong>single color LED strips</strong>.</p>"
+    },
+    {
+      "type": "fieldset",
+      "title": "⚙️ Global Settings",
+      "expandable": true,
+      "expanded": false,
+      "items": [
+        {
+          "key": "pollingInterval",
+          "type": "number",
+          "title": "Status Polling Interval (seconds)",
+          "description": "How often the plugin checks device status. Recommended: 5-10 seconds.",
+          "minimum": 1,
+          "maximum": 300
+        }
+      ]
+    },
+    {
+      "type": "help",
+      "helpvalue": "<h4>💡 LED Device Configuration</h4><p>Add your MagicHome LED devices below. You can use either IP addresses or MAC addresses.</p><div style='background: #f8f9fa; padding: 12px; border-radius: 6px; margin: 8px 0;'><strong>Supported Address Formats:</strong><ul><li><strong>IP Address:</strong> 192.168.1.90</li><li><strong>MAC (colons):</strong> AA:BB:CC:DD:EE:FF</li><li><strong>MAC (hyphens):</strong> AA-BB-CC-DD-EE-FF</li><li><strong>MAC (no separators):</strong> AABBCCDDEEFF</li></ul></div>"
+    },
+    {
+      "type": "fieldset",
+      "title": "💡 LED Devices",
+      "expandable": false,
+      "items": [
+        {
+          "key": "lights",
+          "type": "array",
+          "orderable": true,
+          "buttonText": "➕ Add LED Device",
+          "items": [
+            {
+              "type": "div",
+              "displayFlex": true,
+              "flex-direction": "row",
+              "items": [
+                {
+                  "key": "lights[].name",
+                  "type": "string",
+                  "placeholder": "Kitchen LED Strip",
+                  "flex": "1 1 50%",
+                  "style": {
+                    "margin-right": "10px"
+                  }
+                },
+                {
+                  "key": "lights[].address",
+                  "type": "string",
+                  "placeholder": "192.168.1.90 or AA:BB:CC:DD:EE:FF",
+                  "flex": "1 1 50%"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "help",
+      "helpvalue": "<div style='background: #e8f5e8; padding: 12px; border-radius: 6px; border-left: 4px solid #28a745;'><h4 style='margin-top: 0; color: #155724;'>✅ Configuration Tips</h4><ul style='margin-bottom: 0; color: #155724;'><li>Ensure your MagicHome devices are powered on and connected to WiFi</li><li>For MAC addresses, the device must be on the same network as Homebridge</li><li>Use descriptive names that will make sense in the Apple Home app</li><li>Lower polling intervals provide faster updates but use more network resources</li></ul></div>"
     }
-  }
+  ]
 }

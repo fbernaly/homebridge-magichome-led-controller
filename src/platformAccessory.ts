@@ -1,48 +1,65 @@
 import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge';
+import { Control } from 'magic-home';
 
-import type { ExampleHomebridgePlatform } from './platform.js';
+import type { MagichomeHomebridgePlatform } from './platform.js';
+
+
 
 /**
- * Platform Accessory
- * An instance of this class is created for each accessory your platform registers
- * Each accessory may expose multiple services of different service types.
+ * Magichome Single Color LED Strip Accessory
+ * 
+ * Controls MagicHome single color LED strips via HomeKit.
+ * Maps brightness (0-100%) to red channel (0-255).
  */
-export class ExamplePlatformAccessory {
+export class SingleColorLedStrip {
   private service: Service;
+  private light: Control;
+  private deviceIP: string;
+  private deviceName: string;
+  private pollingIntervalMs: number;
+  private pollingTimer?: NodeJS.Timeout;
 
   /**
-   * These are just used to create a working example
-   * You should implement your own code to track the state of your accessory
+   * Internal state cache - updated immediately and via polling
    */
-  private exampleStates = {
+  private accessoryState = {
     On: false,
     Brightness: 100,
   };
 
   constructor(
-    private readonly platform: ExampleHomebridgePlatform,
+    private readonly platform: MagichomeHomebridgePlatform,
     private readonly accessory: PlatformAccessory,
   ) {
+    // Get device IP and name from accessory context
+    this.deviceIP = accessory.context.device.address;
+    this.deviceName = accessory.context.device.name;
+    
+    // Get polling interval from platform config (in seconds), convert to milliseconds
+    this.pollingIntervalMs = (platform.config.pollingInterval || 5) * 1000;
+    
+    // Initialize the magic-home Control instance
+    this.light = new Control(this.deviceIP);
+
     // set accessory information
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
-      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Default-Manufacturer')
-      .setCharacteristic(this.platform.Characteristic.Model, 'Default-Model')
-      .setCharacteristic(this.platform.Characteristic.SerialNumber, 'Default-Serial');
+      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'MagicHome')
+      .setCharacteristic(this.platform.Characteristic.Model, 'Single Color LED Strip')
+      .setCharacteristic(this.platform.Characteristic.SerialNumber, this.deviceIP);
 
     // get the LightBulb service if it exists, otherwise create a new LightBulb service
     // you can create multiple services for each accessory
+    this.service = this.accessory.getService(this.platform.Service.Lightbulb) || this.accessory.addService(this.platform.Service.Lightbulb);
 
-    if (accessory.context.device.CustomService) {
-      // This is only required when using Custom Services and Characteristics not support by HomeKit
-      this.service = this.accessory.getService(this.platform.CustomServices[accessory.context.device.CustomService]) ||
-        this.accessory.addService(this.platform.CustomServices[accessory.context.device.CustomService]);
-    } else {
-      this.service = this.accessory.getService(this.platform.Service.Lightbulb) || this.accessory.addService(this.platform.Service.Lightbulb);
-    }
+    // Query the current state of the light initially
+    this.queryAndUpdateState();
+
+    // Start polling every 10 seconds
+    this.startPolling();
 
     // set the service name, this is what is displayed as the default name on the Home app
     // in this example we are using the name we stored in the `accessory.context` in the `discoverDevices` method.
-    this.service.setCharacteristic(this.platform.Characteristic.Name, accessory.context.device.exampleDisplayName);
+    this.service.setCharacteristic(this.platform.Characteristic.Name, this.deviceName);
 
     // each service must implement at-minimum the "required characteristics" for the given service type
     // see https://developers.homebridge.io/#/service/Lightbulb
@@ -54,80 +71,47 @@ export class ExamplePlatformAccessory {
 
     // register handlers for the Brightness Characteristic
     this.service.getCharacteristic(this.platform.Characteristic.Brightness)
-      .onSet(this.setBrightness.bind(this)); // SET - bind to the `setBrightness` method below
-
-    /**
-     * Creating multiple services of the same type.
-     *
-     * To avoid "Cannot add a Service with the same UUID another Service without also defining a unique 'subtype' property." error,
-     * when creating multiple services of the same type, you need to use the following syntax to specify a name and subtype id:
-     * this.accessory.getService('NAME') || this.accessory.addService(this.platform.Service.Lightbulb, 'NAME', 'USER_DEFINED_SUBTYPE_ID');
-     *
-     * The USER_DEFINED_SUBTYPE must be unique to the platform accessory (if you platform exposes multiple accessories, each accessory
-     * can use the same subtype id.)
-     */
-
-    // Example: add two "motion sensor" services to the accessory
-    const motionSensorOneService = this.accessory.getService('Motion Sensor One Name')
-      || this.accessory.addService(this.platform.Service.MotionSensor, 'Motion Sensor One Name', 'YourUniqueIdentifier-1');
-
-    const motionSensorTwoService = this.accessory.getService('Motion Sensor Two Name')
-      || this.accessory.addService(this.platform.Service.MotionSensor, 'Motion Sensor Two Name', 'YourUniqueIdentifier-2');
-
-    /**
-     * Updating characteristics values asynchronously.
-     *
-     * Example showing how to update the state of a Characteristic asynchronously instead
-     * of using the `on('get')` handlers.
-     * Here we change update the motion sensor trigger states on and off every 10 seconds
-     * the `updateCharacteristic` method.
-     *
-     */
-    let motionDetected = false;
-    setInterval(() => {
-      // EXAMPLE - inverse the trigger
-      motionDetected = !motionDetected;
-
-      // push the new value to HomeKit
-      motionSensorOneService.updateCharacteristic(this.platform.Characteristic.MotionDetected, motionDetected);
-      motionSensorTwoService.updateCharacteristic(this.platform.Characteristic.MotionDetected, !motionDetected);
-
-      this.platform.log.debug('Triggering motionSensorOneService:', motionDetected);
-      this.platform.log.debug('Triggering motionSensorTwoService:', !motionDetected);
-    }, 10000);
+      .onSet(this.setBrightness.bind(this)) // SET - bind to the `setBrightness` method below
+      .onGet(this.getBrightness.bind(this)); // GET - bind to the `getBrightness` method below
   }
 
   /**
-   * Handle "SET" requests from HomeKit
-   * These are sent when the user changes the state of an accessory, for example, turning on a Light bulb.
+   * Handle on/off requests from HomeKit
    */
   async setOn(value: CharacteristicValue) {
-    // implement your own code to turn your device on/off
-    this.exampleStates.On = value as boolean;
-
-    this.platform.log.debug('Set Characteristic On ->', value);
+    const isOn = value as boolean;
+    
+    // Update internal state immediately
+    this.accessoryState.On = isOn;
+    
+    // Send command asynchronously without blocking HomeKit response
+    if (isOn) {
+      this.light.turnOn()
+        .then(() => {
+          this.platform.log.info(`Light "${this.deviceName}" turned ON`);
+        })
+        .catch((error: unknown) => {
+          this.platform.log.error(`Failed to turn on light "${this.deviceName}":`, error);
+        });
+    } else {
+      this.light.turnOff()
+        .then(() => {
+          this.platform.log.info(`Light "${this.deviceName}" turned OFF`);
+        })
+        .catch((error: unknown) => {
+          this.platform.log.error(`Failed to turn off light "${this.deviceName}":`, error);
+        });
+    }
   }
 
   /**
-   * Handle the "GET" requests from HomeKit
-   * These are sent when HomeKit wants to know the current state of the accessory, for example, checking if a Light bulb is on.
-   *
-   * GET requests should return as fast as possible. A long delay here will result in
-   * HomeKit being unresponsive and a bad user experience in general.
-   *
-   * If your device takes time to respond you should update the status of your device
-   * asynchronously instead using the `updateCharacteristic` method instead.
-   * In this case, you may decide not to implement `onGet` handlers, which may speed up
-   * the responsiveness of your device in the Home app.
-
-   * @example
-   * this.service.updateCharacteristic(this.platform.Characteristic.On, true)
+   * Handle on/off status requests from HomeKit
    */
   async getOn(): Promise<CharacteristicValue> {
     // implement your own code to check if the device is on
-    const isOn = this.exampleStates.On;
+    const isOn = this.accessoryState.On;
 
-    this.platform.log.debug('Get Characteristic On ->', isOn);
+    this.platform.log.info('Get Characteristic On ->', isOn);
 
     // if you need to return an error to show the device as "Not Responding" in the Home app:
     // throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
@@ -136,13 +120,109 @@ export class ExamplePlatformAccessory {
   }
 
   /**
-   * Handle "SET" requests from HomeKit
-   * These are sent when the user changes the state of an accessory, for example, changing the Brightness
+   * Handle brightness change requests from HomeKit
    */
   async setBrightness(value: CharacteristicValue) {
-    // implement your own code to set the brightness
-    this.exampleStates.Brightness = value as number;
+    const brightness = value as number;
+    
+    // Map brightness from HomeKit range (0-100) to color range (0-255)
+    const redValue = Math.round((brightness / 100) * 255);
+    
+    // Update internal state immediately
+    this.accessoryState.Brightness = brightness;
+    
+    // Set color asynchronously without blocking HomeKit response
+    this.light.setColor(redValue, 0, 0)
+      .then(() => {
+        this.platform.log.info(`Light "${this.deviceName}" brightness set to ${brightness}% (red: ${redValue})`);
+      })
+      .catch((error: unknown) => {
+        this.platform.log.error(`Failed to set brightness ${brightness}% for light "${this.deviceName}":`, error);
+      });
+  }
 
-    this.platform.log.debug('Set Characteristic Brightness -> ', value);
+  /**
+   * Handle brightness status requests from HomeKit
+   */
+  async getBrightness(): Promise<CharacteristicValue> {
+    // implement your own code to check the current brightness
+    const brightness = this.accessoryState.Brightness;
+
+    this.platform.log.info('Get Characteristic Brightness ->', brightness);
+
+    // if you need to return an error to show the device as "Not Responding" in the Home app:
+    // throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+
+    return brightness;
+  }
+
+  /**
+   * Poll device state and update HomeKit characteristics if changed
+   */
+  private async queryAndUpdateState(): Promise<void> {
+    this.light.queryState()
+      .then((state) => {
+        const deviceState = state as {
+          type: number;
+          on: boolean;
+          mode: string;
+          pattern: string | null;
+          speed: number;
+          color: { red: number; green: number; blue: number };
+          warm_white: number;
+          cold_white: number;
+        };
+        
+        const currentOn = deviceState.on;
+        // Map brightness from color.red (0-255) to HomeKit range (0-100)
+        const currentBrightness = Math.round((deviceState.color.red / 255) * 100);
+        
+        // Check if on/off state has changed
+        if (this.accessoryState.On !== currentOn) {
+          this.platform.log.info(`Light "${this.deviceName}" state changed: ${currentOn ? 'ON' : 'OFF'}`);
+          
+          // Update internal state
+          this.accessoryState.On = currentOn;
+          
+          // Update HomeKit characteristic
+          this.service.updateCharacteristic(this.platform.Characteristic.On, currentOn);
+        }
+        
+        // Check if brightness has changed
+        if (this.accessoryState.Brightness !== currentBrightness) {
+          this.platform.log.info(`Light "${this.deviceName}" brightness changed: ${currentBrightness}% (red: ${deviceState.color.red})`);
+          
+          // Update internal state
+          this.accessoryState.Brightness = currentBrightness;
+          
+          // Update HomeKit characteristic
+          this.service.updateCharacteristic(this.platform.Characteristic.Brightness, currentBrightness);
+        }
+      })
+      .catch((error: unknown) => {
+        this.platform.log.error(`Failed to query state of light "${this.deviceName}":`, error);
+      });
+  }
+
+  /**
+   * Start periodic device polling
+   */
+  private async startPolling(): Promise<void> {
+    this.platform.log.info(`Starting polling for light "${this.deviceName}" every ${this.pollingIntervalMs / 1000} seconds`);
+    
+    this.pollingTimer = setInterval(() => {
+      this.queryAndUpdateState();
+    }, this.pollingIntervalMs);
+  }
+
+  /**
+   * Stop device polling
+   */
+  private async stopPolling(): Promise<void> {
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = undefined;
+      this.platform.log.info(`Stopped polling for light "${this.deviceName}"`);
+    }
   }
 }

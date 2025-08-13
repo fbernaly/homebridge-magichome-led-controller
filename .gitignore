@@ -122,5 +122,3 @@ dist
 
 # Webstorm
 .idea
-
-/test/hbConfig

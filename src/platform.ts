@@ -1,29 +1,26 @@
 import type { API, Characteristic, DynamicPlatformPlugin, Logging, PlatformAccessory, PlatformConfig, Service } from 'homebridge';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
-import { ExamplePlatformAccessory } from './platformAccessory.js';
+import { SingleColorLedStrip } from './platformAccessory.js';
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
 
-// This is only required when using Custom Services and Characteristics not support by HomeKit
-import { EveHomeKitTypes } from 'homebridge-lib/EveHomeKitTypes';
+const execAsync = promisify(exec);
+
+
 
 /**
- * HomebridgePlatform
- * This class is the main constructor for your plugin, this is where you should
- * parse the user config and discover/register accessories with Homebridge.
+ * MagicHome Homebridge Platform
+ * 
+ * Manages device configuration, MAC-to-IP resolution, and accessory registration.
  */
-export class ExampleHomebridgePlatform implements DynamicPlatformPlugin {
+export class MagichomeHomebridgePlatform implements DynamicPlatformPlugin {
   public readonly Service: typeof Service;
   public readonly Characteristic: typeof Characteristic;
 
   // this is used to track restored cached accessories
   public readonly accessories: Map<string, PlatformAccessory> = new Map();
   public readonly discoveredCacheUUIDs: string[] = [];
-
-  // This is only required when using Custom Services and Characteristics not support by HomeKit
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public readonly CustomServices: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public readonly CustomCharacteristics: any;
 
   constructor(
     public readonly log: Logging,
@@ -32,12 +29,6 @@ export class ExampleHomebridgePlatform implements DynamicPlatformPlugin {
   ) {
     this.Service = api.hap.Service;
     this.Characteristic = api.hap.Characteristic;
-
-    // This is only required when using Custom Services and Characteristics not support by HomeKit
-    this.CustomServices = new EveHomeKitTypes(this.api).Services;
-    this.CustomCharacteristics = new EveHomeKitTypes(this.api).Characteristics;
-
-    this.log.debug('Finished initializing platform:', this.config.name);
 
     // When this event is fired it means Homebridge has restored all cached accessories from disk.
     // Dynamic Platform plugins should only register new accessories after this event was fired,
@@ -51,8 +42,7 @@ export class ExampleHomebridgePlatform implements DynamicPlatformPlugin {
   }
 
   /**
-   * This function is invoked when homebridge restores cached accessories from disk at startup.
-   * It should be used to set up event handlers for characteristics and update respective values.
+   * Restore cached accessories from disk at startup
    */
   configureAccessory(accessory: PlatformAccessory) {
     this.log.info('Loading accessory from cache:', accessory.displayName);
@@ -62,37 +52,50 @@ export class ExampleHomebridgePlatform implements DynamicPlatformPlugin {
   }
 
   /**
-   * This is an example method showing how to register discovered accessories.
-   * Accessories must only be registered once, previously created accessories
-   * must not be registered again to prevent "duplicate UUID" errors.
+   * Discover and register configured MagicHome devices
    */
-  discoverDevices() {
-    // EXAMPLE ONLY
-    // A real plugin you would discover accessories from the local network, cloud services
-    // or a user-defined array in the platform config.
-    const exampleDevices = [
-      {
-        exampleUniqueId: 'ABCD',
-        exampleDisplayName: 'Bedroom',
-      },
-      {
-        exampleUniqueId: 'EFGH',
-        exampleDisplayName: 'Kitchen',
-      },
-      {
-        // This is an example of a device which uses a Custom Service
-        exampleUniqueId: 'IJKL',
-        exampleDisplayName: 'Backyard',
-        CustomService: 'AirPressureSensor',
-      },
-    ];
+  async discoverDevices() {
+    this.log.info('Starting MagicHome device discovery...');
+
+    // get the devices from the config
+    const devices = this.config.lights || [];
 
     // loop over the discovered devices and register each one if it has not already been registered
-    for (const device of exampleDevices) {
+    for (const device of devices) {
+      // Validate address type
+      const isIP = this.isValidIPAddress(device.address);
+      const isMAC = this.isValidMACAddress(device.address);
+      
+      if (!isIP && !isMAC) {
+        this.log.error(`Invalid address format for device "${device.name}": ${device.address}`);
+        this.log.error('Address must be a valid IP address or MAC address');
+        continue; // Skip this device
+      }
+      
+      // Log address type for debugging
+      const addressType = isIP ? 'IP address' : 'MAC address';
+      this.log.info(`Processing device "${device.name}" with ${addressType}: ${device.address}`);
+      
+      let deviceAddress = device.address;
+      
+      if (isMAC) {
+        this.log.info(`MAC address detected for "${device.name}". Resolving to IP address...`);
+        
+        const resolvedIP = await this.resolveMacToIP(device.address);
+        if (resolvedIP) {
+          this.log.info(`Successfully resolved MAC ${device.address} to IP ${resolvedIP}`);
+          deviceAddress = resolvedIP;
+        } else {
+          this.log.error(`Failed to resolve MAC address ${device.address} to IP address`);
+          this.log.error(`Device "${device.name}" will be skipped. Ensure the device is online and on the same network.`);
+          continue; // Skip this device if we can't resolve its IP
+        }
+      }
+
       // generate a unique id for the accessory this should be generated from
       // something globally unique, but constant, for example, the device serial
       // number or MAC address
-      const uuid = this.api.hap.uuid.generate(device.exampleUniqueId);
+      const uuid = this.api.hap.uuid.generate(device.address);
 
       // see if an accessory with the same uuid has already been registered and restored from
       // the cached devices we stored in the `configureAccessory` method above
@@ -102,13 +105,19 @@ export class ExampleHomebridgePlatform implements DynamicPlatformPlugin {
         // the accessory already exists
         this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
 
-        // if you need to update the accessory.context then you should run `api.updatePlatformAccessories`. e.g.:
-        // existingAccessory.context.device = device;
-        // this.api.updatePlatformAccessories([existingAccessory]);
+        // Update the accessory context with resolved IP address if needed
+        if (deviceAddress !== device.address) {
+          existingAccessory.context.device = {
+            ...device,
+            address: deviceAddress, // Use resolved IP address
+            originalAddress: device.address, // Keep original address for reference
+          };
+          this.api.updatePlatformAccessories([existingAccessory]);
+        }
 
         // create the accessory handler for the restored accessory
         // this is imported from `platformAccessory.ts`
-        new ExamplePlatformAccessory(this, existingAccessory);
+        new SingleColorLedStrip(this, existingAccessory);
 
         // it is possible to remove platform accessories at any time using `api.unregisterPlatformAccessories`, e.g.:
         // remove platform accessories when no longer present
@@ -116,18 +125,23 @@ export class ExampleHomebridgePlatform implements DynamicPlatformPlugin {
         // this.log.info('Removing existing accessory from cache:', existingAccessory.displayName);
       } else {
         // the accessory does not yet exist, so we need to create it
-        this.log.info('Adding new accessory:', device.exampleDisplayName);
+        this.log.info('Adding new accessory:', device.name);
 
         // create a new accessory
-        const accessory = new this.api.platformAccessory(device.exampleDisplayName, uuid);
+        const accessory = new this.api.platformAccessory(device.name, uuid);
 
         // store a copy of the device object in the `accessory.context`
         // the `context` property can be used to store any data about the accessory you may need
-        accessory.context.device = device;
+        // Use resolved IP address for MAC addresses
+        accessory.context.device = {
+          ...device,
+          address: deviceAddress, // Use resolved IP address
+          originalAddress: device.address, // Keep original address for reference
+        };
 
         // create the accessory handler for the newly create accessory
         // this is imported from `platformAccessory.ts`
-        new ExamplePlatformAccessory(this, accessory);
+        new SingleColorLedStrip(this, accessory);
 
         // link the accessory to your platform
         this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
@@ -145,6 +159,59 @@ export class ExampleHomebridgePlatform implements DynamicPlatformPlugin {
         this.log.info('Removing existing accessory from cache:', accessory.displayName);
         this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
       }
+    }
+  }
+
+  /**
+   * Validate IPv4 address format
+   */
+  private isValidIPAddress(address: string): boolean {
+    const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    return ipv4Regex.test(address);
+  }
+
+  /**
+   * Validate MAC address format (AA:BB:CC:DD:EE:FF, AA-BB-CC-DD-EE-FF, AABBCCDDEEFF)
+   */
+  private isValidMACAddress(address: string): boolean {
+    // Format with colons or hyphens: AA:BB:CC:DD:EE:FF or AA-BB-CC-DD-EE-FF
+    const macWithSeparators = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
+    // Format without separators: AABBCCDDEEFF
+    const macWithoutSeparators = /^[0-9A-Fa-f]{12}$/;
+    
+    return macWithSeparators.test(address) || macWithoutSeparators.test(address);
+  }
+
+  /**
+   * Resolve MAC to IP address via ARP table (Linux/macOS)
+   */
+  private async resolveMacToIP(macAddress: string): Promise<string | null> {
+    try {
+      // Normalize MAC address format (remove colons/hyphens and convert to lowercase)
+      const normalizedMac = macAddress.replace(/[:-]/g, '').toLowerCase();
+      
+      const { stdout } = await execAsync('arp -a');
+      const arpEntries = stdout.split('\n');
+      
+      // Parse ARP table entries to find matching MAC address
+      for (const entry of arpEntries) {
+        // Linux/macOS format: hostname (192.168.1.90) at aa:bb:cc:dd:ee:ff [ether] on en0
+        const match = entry.match(/\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([a-fA-F0-9:]{17})/);
+        
+        if (match) {
+          const [, ip, mac] = match;
+          const entryMac = mac.replace(/[:-]/g, '').toLowerCase();
+          
+          if (entryMac === normalizedMac) {
+            return ip;
+          }
+        }
+      }
+      
+      return null; // MAC address not found in ARP table
+    } catch (error) {
+      this.log.error('Error resolving MAC to IP:', error);
+      return null;
     }
   }
 }

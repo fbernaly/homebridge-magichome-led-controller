@@ -1,215 +1,172 @@
-<p align="center">
+# Homebridge MagicHome LED Controller
 
-<img src="https://github.com/homebridge/branding/raw/latest/logos/homebridge-wordmark-logo-vertical.png" width="150">
+A Homebridge plugin for controlling MagicHome single color LED strips through HomeKit.
 
-</p>
+<div align="center">
+  <img src="./ima/image_controller.jpg" alt="MagicHome WiFi LED Controller" width="400">
+</div>
 
-<span align="center">
+## Features
 
-# Homebridge Platform Plugin Template
+- **HomeKit Integration**: Control your MagicHome single color LED strips through the Apple Home app
+- **Brightness Control**: Adjust brightness levels (mapped to red channel intensity for single color strips)
+- **Real-time Status Updates**: Automatic polling of device state with configurable intervals (1-300 seconds)
+- **Flexible Device Configuration**: Support for both IP addresses and MAC addresses
+- **Automatic MAC Resolution**: Converts MAC addresses to IP addresses using ARP table lookup
+- **Multiple Device Support**: Configure and control multiple MagicHome devices
+- **Custom Configuration UI**: User-friendly setup interface through Homebridge UI
+- **Comprehensive Logging**: Detailed device operation logs with human-readable device names
 
-</span>
+## Installation
 
-> [!IMPORTANT]
-> **Homebridge v2.0 Information**
->
-> This template currently has a
-> - `package.json -> engines.homebridge` value of `"^1.8.0 || ^2.0.0-beta.0"`
-> - `package.json -> devDependencies.homebridge` value of `"^2.0.0-beta.0"`
->
-> This is to ensure that your plugin will build and run on both Homebridge v1 and v2.
->
-> Once Homebridge v2.0 has been released, you can remove the `-beta.0` in both places.
-
----
-
-This is a template Homebridge dynamic platform plugin and can be used as a base to help you get started developing your own plugin.
-
-This template should be used in conjunction with the [developer documentation](https://developers.homebridge.io/). A full list of all supported service types, and their characteristics is available on this site.
-
-### Clone As Template
-
-Click the link below to create a new GitHub Repository using this template, or click the *Use This Template* button above.
-
-<span align="center">
-
-### [Create New Repository From Template](https://github.com/homebridge/homebridge-plugin-template/generate)
-
-</span>
-
-### Setup Development Environment
-
-To develop Homebridge plugins you must have Node.js 18 or later installed, and a modern code editor such as [VS Code](https://code.visualstudio.com/). This plugin template uses [TypeScript](https://www.typescriptlang.org/) to make development easier and comes with pre-configured settings for [VS Code](https://code.visualstudio.com/) and ESLint. If you are using VS Code install these extensions:
-
-- [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
-
-### Install Development Dependencies
-
-Using a terminal, navigate to the project folder and run this command to install the development dependencies:
-
-```shell
-npm install
+1. Install the plugin through Homebridge UI or via npm:
+```bash
+npm install -g homebridge-magichome-led-controller
 ```
 
-### Update package.json
+2. Configure the plugin in your Homebridge `config.json` or through the Homebridge UI
 
-Open the [`package.json`](./package.json) and change the following attributes:
+## Configuration
 
-- `name` - this should be prefixed with `homebridge-` or `@username/homebridge-`, is case-sensitive, and contains no spaces nor special characters apart from a dash `-`
-- `displayName` - this is the "nice" name displayed in the Homebridge UI
-- `homepage` - link to your GitHub repo's `README.md`
-- `repository.url` - link to your GitHub repo
-- `bugs.url` - link to your GitHub repo issues page
+### Option 1: Homebridge UI (Recommended)
 
-When you are ready to publish the plugin you should set `private` to false, or remove the attribute entirely.
+The plugin includes a custom configuration interface that makes setup easy:
 
-### Update Plugin Defaults
+1. Open the Homebridge UI
+2. Go to the "Plugins" tab
+3. Find "Homebridge MagicHome LED Controller" and click "Settings"
+4. Use the intuitive interface to add your devices
 
-Open the [`src/settings.ts`](./src/settings.ts) file and change the default values:
+### Option 2: Manual Configuration
 
-- `PLATFORM_NAME` - Set this to be the name of your platform. This is the name of the platform that users will use to register the plugin in the Homebridge `config.json`.
-- `PLUGIN_NAME` - Set this to be the same name you set in the [`package.json`](./package.json) file.
+Add the platform to your `config.json`:
 
-Open the [`config.schema.json`](./config.schema.json) file and change the following attribute:
-
-- `pluginAlias` - set this to match the `PLATFORM_NAME` you defined in the previous step.
-
-See the [Homebridge API docs](https://developers.homebridge.io/#/config-schema#default-values) for more details on the other attributes you can set in the `config.schema.json` file.
-
-### Build Plugin
-
-TypeScript needs to be compiled into JavaScript before it can run. The following command will compile the contents of your [`src`](./src) directory and put the resulting code into the `dist` folder.
-
-```shell
-npm run build
-```
-
-### Link To Homebridge
-
-Run this command so your global installation of Homebridge can discover the plugin in your development environment:
-
-```shell
-npm link
-```
-
-You can now start Homebridge, use the `-D` flag, so you can see debug log messages in your plugin:
-
-```shell
-homebridge -D
-```
-
-### Watch For Changes and Build Automatically
-
-If you want to have your code compile automatically as you make changes, and restart Homebridge automatically between changes, you first need to add your plugin as a platform in `./test/hbConfig/config.json`:
-```
+```json
 {
-...
-    "platforms": [
+  "platforms": [
+    {
+      "platform": "HomebridgeMagichomeLedController",
+      "pollingInterval": 5,
+      "lights": [
         {
-            "name": "Config",
-            "port": 8581,
-            "platform": "config"
+          "name": "Kitchen LEDs",
+          "address": "192.168.1.90"
         },
         {
-            "name": "<PLUGIN_NAME>",
-            //... any other options, as listed in config.schema.json ...
-            "platform": "<PLATFORM_NAME>"
+          "name": "Living Room LEDs", 
+          "address": "F4CFA20FC87B"
         }
-    ]
+      ]
+    }
+  ]
 }
 ```
 
-and then you can run:
+### Configuration Options
 
-```shell
-npm run watch
+| Option | Type | Required | Default | Description |
+|--------|------|----------|---------|-------------|
+| `platform` | string | Yes | - | Must be "HomebridgeMagichomeLedController" |
+| `pollingInterval` | number | No | 5 | Status polling interval in seconds (1-300 seconds) |
+| `lights` | array | Yes | - | Array of light device configurations (minimum 1 device) |
+
+### Light Device Configuration
+
+| Option | Type | Required | Validation | Description |
+|--------|------|----------|------------|-------------|
+| `name` | string | Yes | 1-50 characters | Display name for the device in HomeKit |
+| `address` | string | Yes | IP or MAC format | IP address or MAC address of the device |
+
+### Address Formats
+
+The plugin supports multiple address formats:
+
+- **IP Address**: `192.168.1.90`
+- **MAC Address (with colons)**: `AA:BB:CC:DD:EE:FF`
+- **MAC Address (with hyphens)**: `AA-BB-CC-DD-EE-FF`
+- **MAC Address (no separators)**: `AABBCCDDEEFF`
+
+When using MAC addresses, the plugin will automatically resolve them to IP addresses using the system's ARP table.
+
+## Device Compatibility
+
+This plugin is specifically designed for MagicHome single color LED strips that support the `magic-home` npm package protocol. 
+
+**Supported devices:**
+- MagicHome single color LED strips
+- MagicHome WiFi LED controllers for single color strips
+
+**Note:** While this plugin can technically control RGB LED strips, it is optimized for single color strips and will only use the red channel for brightness control.
+
+## How It Works
+
+1. **Device Discovery**: The plugin reads configured devices from the config file
+2. **Address Resolution**: MAC addresses are resolved to IP addresses via ARP lookup
+3. **Device Control**: Uses the `magic-home` npm package to communicate with devices
+4. **State Synchronization**: Polls device status at configurable intervals
+5. **HomeKit Integration**: Exposes devices as HomeKit lightbulb accessories
+
+## Brightness Mapping
+
+The plugin maps HomeKit brightness (0-100%) to the red channel of the LED device (0-255). This design is specifically optimized for single color LED strips, providing precise brightness control through the red channel intensity.
+
+## Troubleshooting
+
+### Device Not Found
+- Ensure the device is powered on and connected to the same network
+- For MAC addresses, verify the device is in the ARP table: `arp -a`
+- Check that the IP address is correct and reachable
+
+### Connection Issues
+- Verify firewall settings allow communication on the device's port
+- Ensure the MagicHome device firmware is compatible
+- Check network connectivity between Homebridge and the device
+
+### Configuration Issues
+- Verify the `platform` name is exactly "HomebridgeMagichomeLedController"
+- Ensure at least one device is configured in the `lights` array
+- Check device names are between 1-50 characters
+- Validate address formats match the supported patterns
+
+### Logs
+Monitor the Homebridge logs for detailed error messages and status updates. The plugin provides comprehensive logging for device operations and state changes using human-readable device names.
+
+## Development
+
+### Setup Development Environment
+
+1. Clone the repository
+2. Install dependencies:
+```bash
+npm install
 ```
 
-This will launch an instance of Homebridge in debug mode which will restart every time you make a change to the source code. It will load the config stored in the default location under `~/.homebridge`. You may need to stop other running instances of Homebridge while using this command to prevent conflicts. You can adjust the Homebridge startup command in the [`nodemon.json`](./nodemon.json) file.
-
-### Customise Plugin
-
-You can now start customising the plugin template to suit your requirements.
-
-- [`src/platform.ts`](./src/platform.ts) - this is where your device setup and discovery should go.
-- [`src/platformAccessory.ts`](./src/platformAccessory.ts) - this is where your accessory control logic should go, you can rename or create multiple instances of this file for each accessory type you need to implement as part of your platform plugin. You can refer to the [developer documentation](https://developers.homebridge.io/) to see what characteristics you need to implement for each service type.
-- [`config.schema.json`](./config.schema.json) - update the config schema to match the config you expect from the user. See the [Plugin Config Schema Documentation](https://developers.homebridge.io/#/config-schema).
-
-### Versioning Your Plugin
-
-Given a version number `MAJOR`.`MINOR`.`PATCH`, such as `1.4.3`, increment the:
-
-1. **MAJOR** version when you make breaking changes to your plugin,
-2. **MINOR** version when you add functionality in a backwards compatible manner, and
-3. **PATCH** version when you make backwards compatible bug fixes.
-
-You can use the `npm version` command to help you with this:
-
-```shell
-# major update / breaking changes
-npm version major
-
-# minor update / new features
-npm version update
-
-# patch / bugfixes
-npm version patch
+3. Build the plugin:
+```bash
+npm run build
 ```
 
-### Publish Package
-
-When you are ready to publish your plugin to [npm](https://www.npmjs.com/), make sure you have removed the `private` attribute from the [`package.json`](./package.json) file then run:
-
-```shell
-npm publish
+4. Link for development:
+```bash
+sudo hb-service link
+sudo hb-service restart
 ```
 
-If you are publishing a scoped plugin, i.e. `@username/homebridge-xxx` you will need to add `--access=public` to command the first time you publish.
+## Contributing
 
-#### Publishing Beta Versions
+Contributions are welcome! Please feel free to submit issues and pull requests.
 
-You can publish *beta* versions of your plugin for other users to test before you release it to everyone.
+## Requirements
 
-```shell
-# create a new pre-release version (eg. 2.1.0-beta.1)
-npm version prepatch --preid beta
+- **Node.js**: 18.20.4+ or 20.18.0+ or 22.10.0+
+- **Homebridge**: 1.8.0+ or 2.0.0-beta.0+
+- **Network**: MagicHome devices must be on the same network as Homebridge
 
-# publish to @beta
-npm publish --tag beta
-```
+## License
 
-Users can then install the  *beta* version by appending `@beta` to the install command, for example:
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
-```shell
-sudo npm install -g homebridge-example-plugin@beta
-```
+## Credits
 
-### Best Practices
-
-Consider creating your plugin with the [Homebridge Verified](https://github.com/homebridge/verified) criteria in mind. This will help you to create a plugin that is easy to use and works well with Homebridge.
-You can then submit your plugin to the Homebridge Verified list for review.
-The most up-to-date criteria can be found [here](https://github.com/homebridge/verified#requirements).
-For reference, the current criteria are:
-
-- **General**
-  - The plugin must be of type [dynamic platform](https://developers.homebridge.io/#/#dynamic-platform-template).
-  - The plugin must not offer the same nor less functionality than that of any existing **verified** plugin.
-- **Repo**
-  - The plugin must be published to NPM and the source code available on a GitHub repository, with issues enabled.
-  - A GitHub release should be created for every new version of your plugin, with release notes.
-- **Environment**
-  - The plugin must run on all [supported LTS versions of Node.js](https://github.com/homebridge/homebridge/wiki/How-To-Update-Node.js), at the time of writing this is Node v18, v20 and v22.
-  - The plugin must successfully install and not start unless it is configured.
-  - The plugin must not execute post-install scripts that modify the users' system in any way.
-  - The plugin must not require the user to run Homebridge in a TTY or with non-standard startup parameters, even for initial configuration.
-- **Codebase**
-  - The plugin must implement the [Homebridge Plugin Settings GUI](https://developers.homebridge.io/#/config-schema).
-  - The plugin must not contain any analytics or calls that enable you to track the user.
-  - If the plugin needs to write files to disk (cache, keys, etc.), it must store them inside the Homebridge storage directory.
-  - The plugin must not throw unhandled exceptions, the plugin must catch and log its own errors.
-
-### Useful Links
-
-Note these links are here for help but are not supported/verified by the Homebridge team
-
-- [Custom Characteristics](https://github.com/homebridge/homebridge-plugin-template/issues/20)
+- Built on the [Homebridge Plugin Template](https://github.com/homebridge/homebridge-plugin-template)
+- Uses the [magic-home](https://www.npmjs.com/package/magic-home) npm package for device communication

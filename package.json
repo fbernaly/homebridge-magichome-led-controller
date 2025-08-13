@@ -1,28 +1,39 @@
 {
-  "name": "homebridge-plugin-name",
-  "displayName": "Plugin Name",
+  "name": "homebridge-magichome-led-controller",
+  "displayName": "Homebridge MagicHome LED Controller",
   "type": "module",
   "version": "1.0.0",
-  "private": true,
-  "description": "A short description about what your plugin does.",
-  "author": "Your Name",
+  "description": "A Homebridge plugin for controlling MagicHome single color LED strips through HomeKit with brightness control and automatic MAC address resolution.",
+  "author": "@fbernaly",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/USERNAME/GITHUB_PROJECT_NAME#readme",
+  "homepage": "https://github.com/fbernaly/homebridge-magichome-led-controller#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/USERNAME/GITHUB_PROJECT_NAME.git"
+    "url": "https://github.com/fbernaly/homebridge-magichome-led-controller.git"
   },
   "bugs": {
-    "url": "https://github.com/USERNAME/GITHUB_PROJECT_NAME/issues"
+    "url": "https://github.com/fbernaly/homebridge-magichome-led-controller/issues"
   },
   "keywords": [
-    "homebridge-plugin"
+    "homebridge-plugin",
+    "homebridge-magichome",
+    "magichome",
+    "led-controller",
+    "smart-lights",
+    "homekit",
+    "iot"
   ],
   "main": "dist/index.js",
   "engines": {
-    "node": "^18.20.4 || ^20.18.0 || ^22.10.0",
+    "node": "^18.15.0 || ^20.7.0 || ^22.0.0",
     "homebridge": "^1.8.0 || ^2.0.0-beta.0"
   },
+  "files": [
+    "dist",
+    "config.schema.json",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "rimraf ./dist && tsc",
     "lint": "eslint . --max-warnings=0",
@@ -30,7 +41,7 @@
     "watch": "npm run build && npm link && nodemon"
   },
   "dependencies": {
-    "homebridge-lib": "^7.1.4"
+    "magic-home": "^2.2.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
@@ -39,7 +50,6 @@
     "homebridge": "^2.0.0-beta.0",
     "nodemon": "^3.1.9",
     "rimraf": "^6.0.1",
-    "ts-node": "^10.9.2",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.24.1"
   }
