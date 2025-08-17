@@ -35,7 +35,6 @@ export class MagichomeHomebridgePlatform implements DynamicPlatformPlugin {
     // in order to ensure they weren't added to homebridge already. This event can also be used
     // to start discovery of new accessories.
     this.api.on('didFinishLaunching', () => {
-      log.debug('Executed didFinishLaunching callback');
       // run the method to discover / register your devices as accessories
       this.discoverDevices();
     });
@@ -83,10 +82,10 @@ export class MagichomeHomebridgePlatform implements DynamicPlatformPlugin {
         
         const resolvedIP = await this.resolveMacToIP(device.address);
         if (resolvedIP) {
-          this.log.info(`Successfully resolved MAC ${device.address} to IP ${resolvedIP}`);
+          this.log.info(`Successfully resolved MAC ${device.address} to IP ${resolvedIP} for device "${device.name}"`);
           deviceAddress = resolvedIP;
         } else {
-          this.log.error(`Failed to resolve MAC address ${device.address} to IP address`);
+          this.log.error(`Failed to resolve MAC address ${device.address} to IP address for device "${device.name}"`);
           this.log.error(`Device "${device.name}" will be skipped. Ensure the device is online and on the same network.`);
           continue; // Skip this device if we can't resolve its IP
         }
@@ -95,7 +94,7 @@ export class MagichomeHomebridgePlatform implements DynamicPlatformPlugin {
       // generate a unique id for the accessory this should be generated from
       // something globally unique, but constant, for example, the device serial
       // number or MAC address
-      const uuid = this.api.hap.uuid.generate(device.address);
+      const uuid = this.api.hap.uuid.generate(device.id || device.address);
 
       // see if an accessory with the same uuid has already been registered and restored from
       // the cached devices we stored in the `configureAccessory` method above

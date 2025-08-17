@@ -32,6 +32,12 @@
               "placeholder": "e.g., Kitchen LED Strip",
               "description": "The name that will appear in the Apple Home app"
             },
+            "id": {
+              "title": "Device ID",
+              "type": "string",
+              "placeholder": "e.g., some-id",
+              "description": "Unique identifier for the device (used for HomeKit UUID generation)"
+            },
             "address": {
               "title": "Device Address",
               "type": "string",
@@ -71,7 +77,7 @@
     },
     {
       "type": "help",
-      "helpvalue": "<h4>💡 LED Device Configuration</h4><p>Add your MagicHome LED devices below. You can use either IP addresses or MAC addresses.</p><div style='background: #f8f9fa; padding: 12px; border-radius: 6px; margin: 8px 0;'><strong>Supported Address Formats:</strong><ul><li><strong>IP Address:</strong> 192.168.1.90</li><li><strong>MAC (colons):</strong> AA:BB:CC:DD:EE:FF</li><li><strong>MAC (hyphens):</strong> AA-BB-CC-DD-EE-FF</li><li><strong>MAC (no separators):</strong> AABBCCDDEEFF</li></ul></div>"
+      "helpvalue": "<h4>💡 LED Device Configuration</h4><p>Add your MagicHome LED devices below. Each device needs a name and network address.</p><div style='background: #f8f9fa; padding: 12px; border-radius: 6px; margin: 8px 0;'><strong>Required Fields:</strong><ul><li><strong>Device Name:</strong> Name displayed in HomeKit</li><li><strong>Device Address:</strong> IP or MAC address for network connection</li></ul><strong>Optional Fields:</strong><ul><li><strong>Device ID:</strong> Custom identifier for HomeKit UUID (uses address if not provided)</li></ul><strong>Supported Address Formats:</strong><ul><li><strong>IP Address:</strong> 192.168.1.90</li><li><strong>MAC (colons):</strong> AA:BB:CC:DD:EE:FF</li><li><strong>MAC (hyphens):</strong> AA-BB-CC-DD-EE-FF</li><li><strong>MAC (no separators):</strong> AABBCCDDEEFF</li></ul></div>"
     },
     {
       "type": "fieldset",
@@ -87,22 +93,37 @@
             {
               "type": "div",
               "displayFlex": true,
-              "flex-direction": "row",
+              "flex-direction": "column",
               "items": [
                 {
                   "key": "lights[].name",
                   "type": "string",
                   "placeholder": "Kitchen LED Strip",
-                  "flex": "1 1 50%",
                   "style": {
-                    "margin-right": "10px"
+                    "margin-bottom": "8px"
                   }
                 },
                 {
-                  "key": "lights[].address",
-                  "type": "string",
-                  "placeholder": "192.168.1.90 or AA:BB:CC:DD:EE:FF",
-                  "flex": "1 1 50%"
+                  "type": "div",
+                  "displayFlex": true,
+                  "flex-direction": "row",
+                  "items": [
+                    {
+                      "key": "lights[].id",
+                      "type": "string",
+                      "placeholder": "F4CFA20FC87B",
+                      "flex": "1 1 50%",
+                      "style": {
+                        "margin-right": "10px"
+                      }
+                    },
+                    {
+                      "key": "lights[].address",
+                      "type": "string",
+                      "placeholder": "192.168.1.90 or AA:BB:CC:DD:EE:FF",
+                      "flex": "1 1 50%"
+                    }
+                  ]
                 }
               ]
             }
