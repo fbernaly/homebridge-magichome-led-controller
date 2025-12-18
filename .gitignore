@@ -122,3 +122,4 @@ dist
 
 # Webstorm
 .idea
+.npm-cache/*
